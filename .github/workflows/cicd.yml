@@ -19,4 +19,66 @@ jobs:
         cache: maven
     - name: Build with Maven
       run: mvn package --file pom.xml
+      
+    - uses: actions/upload-artifact@v4
+      with:
+        name: Boardgame
+        path: target/*.jar
+
+    - name: scanning filesystem using trivy
+      run: |
+        trivy fs --format table -o trivy-fs-report.html
+
+    - name: sonarscanner 
+      uses: sonarsource/sonarqube-scan-action@master
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_SECRETS }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+    - name: install json query
+      run: sudo apt-get update && sudo apt-get install -y jq
+
+    - name: Sonarqube quality gate check
+      id: sonarqube-quality-gate-check
+      uses: sonarsource/sonarqube-quality-gate-action@master
+      timeout-minutes: 5
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_SECRETS }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+    - name: Setup QEMU
+    - users: docker/setup-qemu-action@v3
+
+    - name: Setup Docker buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker Image
+      run: |
+	      docker build -t sample/boardgame:latest
+
+    - name: privy scanning docker image 
+      run: |
+	      trivy image --format table -o trivy-image-report.html sample/boardgame:latest
+
+    - name: Login to Docker hub
+      Uses: docker/login-action@v3
+      With:
+	      username: ${{ secrets.DOCKERHUB_USERNAME }}
+	      password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: push the docker image
+      run: |
+	      docker push sample/boardgame:latest
+
+       - Name: kubectl action
+- Uses: tale/kubectl-action@v1
+- With:
+    - Base64-kube-config: ${{ secrets.KUBE_CONFIG }}
+- RUN: |
+    - Kubectl apply -f deployment-service.yml -n web apps
+
+      
+        
+
+     
 
